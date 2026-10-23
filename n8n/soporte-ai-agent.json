@@ -1,0 +1,339 @@
+{
+  "name": "HELPLINE - Triaje de tickets con agente IA",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "soporte-ia",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook",
+      "name": "1. Webhook Ticket",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -1000,
+        260
+      ],
+      "webhookId": "soporte-ia"
+    },
+    {
+      "parameters": {
+        "jsCode": "const b=$json.body??$json; const t=b.ticket??{}; return [{json:{ticket:{id:Number(t.id),titulo:String(t.titulo??'').trim(),descripcion:String(t.descripcion??'').trim(),area:String(t.area??''),prioridad:String(t.prioridad??'')}}}];"
+      },
+      "id": "normalize",
+      "name": "2. Normalizar Ticket",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -780,
+        260
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ Number.isInteger($json.ticket.id) && $json.ticket.titulo.length>0 && $json.ticket.descripcion.length>0 }}",
+              "operation": "true"
+            }
+          ]
+        }
+      },
+      "id": "validate",
+      "name": "3. Validar Ticket",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -560,
+        260
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "a",
+              "name": "response",
+              "value": "={{ {ok:false,data:null,error:'Ticket inválido'} }}",
+              "type": "object"
+            }
+          ]
+        }
+      },
+      "id": "input-error",
+      "name": "4. Error de Entrada",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -320,
+        460
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Analiza este ticket: {{ JSON.stringify($json.ticket) }}",
+        "options": {
+          "systemMessage": "Devuelve únicamente JSON con prioridad alta|media|baja, area hardware|software|redes y respuesta breve. No modifiques tickets."
+        }
+      },
+      "id": "agent",
+      "name": "5. Agente IA Triaje",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.9,
+      "position": [
+        -300,
+        80
+      ]
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-4o-mini",
+          "mode": "list",
+          "cachedResultName": "gpt-4o-mini"
+        },
+        "options": {
+          "temperature": 0.2
+        }
+      },
+      "id": "model",
+      "name": "6. OpenAI Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        -40,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw=$json.output??''; try {const x=JSON.parse(String(raw).replace(/^```(?:json)?\\s*|\\s*```$/g,'').trim()); if(!['alta','media','baja'].includes(x.prioridad)||!['hardware','software','redes'].includes(x.area)||typeof x.respuesta!=='string'||!x.respuesta.trim()) throw Error(); return [{json:{ok:true,data:{prioridad:x.prioridad,area:x.area,respuesta:x.respuesta.trim()},error:null}}]} catch {return [{json:{ok:false,data:null,error:'El agente no devolvió JSON válido'}}]}"
+      },
+      "id": "check-ai",
+      "name": "7. Validar JSON IA",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        0,
+        80
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.ok === true }}",
+              "operation": "true"
+            }
+          ]
+        }
+      },
+      "id": "result",
+      "name": "8. Resultado Válido",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        240,
+        80
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "b",
+              "name": "response",
+              "value": "={{ $json }}",
+              "type": "object"
+            }
+          ]
+        }
+      },
+      "id": "success",
+      "name": "9. Preparar Éxito",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        480,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json.response ?? $json) }}",
+        "options": {}
+      },
+      "id": "respond",
+      "name": "10. Responder Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        720,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "c",
+              "name": "response",
+              "value": "={{ {ok:false,data:null,error:$json.error??'Error del agente'} }}",
+              "type": "object"
+            }
+          ]
+        }
+      },
+      "id": "ai-error",
+      "name": "11. Error de IA",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        480,
+        220
+      ]
+    }
+  ],
+  "connections": {
+    "1. Webhook Ticket": {
+      "main": [
+        [
+          {
+            "node": "2. Normalizar Ticket",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "2. Normalizar Ticket": {
+      "main": [
+        [
+          {
+            "node": "3. Validar Ticket",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "3. Validar Ticket": {
+      "main": [
+        [
+          {
+            "node": "5. Agente IA Triaje",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "4. Error de Entrada",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "4. Error de Entrada": {
+      "main": [
+        [
+          {
+            "node": "10. Responder Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "5. Agente IA Triaje": {
+      "main": [
+        [
+          {
+            "node": "7. Validar JSON IA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "6. OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "5. Agente IA Triaje",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "7. Validar JSON IA": {
+      "main": [
+        [
+          {
+            "node": "8. Resultado Válido",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "8. Resultado Válido": {
+      "main": [
+        [
+          {
+            "node": "9. Preparar Éxito",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "11. Error de IA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "9. Preparar Éxito": {
+      "main": [
+        [
+          {
+            "node": "10. Responder Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "11. Error de IA": {
+      "main": [
+        [
+          {
+            "node": "10. Responder Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "active": false,
+  "pinData": {},
+  "tags": []
+}

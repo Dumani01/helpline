@@ -1,0 +1,2 @@
+import { useEffect,useState,useCallback } from 'react';
+export function useFetch(load,keys=[]){const [data,setData]=useState(null),[loading,setLoading]=useState(true),[error,setError]=useState('');const refresh=useCallback(async()=>{setLoading(true);setError('');try{setData(await load());}catch(e){setError(e.message);}finally{setLoading(false);}},keys);useEffect(()=>{refresh();},[refresh]);return {data,loading,error,refresh};}

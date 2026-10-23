@@ -1,0 +1,13 @@
+import express from 'express';
+import cors from 'cors';
+import { router } from './controllers/api.js';
+import { authenticate, authRouter, validateOrigin } from './auth.js';
+export const app=express();
+app.use(cors({origin:process.env.FRONTEND_ORIGIN||'http://localhost:5173',credentials:true,allowedHeaders:['Content-Type','X-Requested-With']}));
+app.use(express.json({limit:'100kb'}));
+app.get('/health',(_,res)=>res.json({ok:true}));
+app.use('/api',validateOrigin);
+app.use('/api/auth',authRouter);
+app.use('/api',authenticate,router);
+app.use((req,res)=>res.status(404).json({error:'Ruta no encontrada'}));
+app.use((err,req,res,next)=>{if(err instanceof SyntaxError&&'body'in err)return res.status(400).json({error:'JSON inválido'});if(err.errcode===1811||/constraint/i.test(err.message))return res.status(409).json({error:'Conflicto de integridad de datos'});const status=err.status||500;res.status(status).json({error:status===500?'Error interno del servidor':err.message});if(status===500)console.error(err);});

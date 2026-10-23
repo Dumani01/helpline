@@ -1,0 +1,1 @@
+{"name":"soporte-sla-api","version":"1.0.0","type":"module","scripts":{"dev":"node --watch src/server.js","start":"node src/server.js","test":"node --test tests/*.test.js"},"dependencies":{"cors":"^2.8.5","dotenv":"^16.6.1","express":"^4.21.2"}}
